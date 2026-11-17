@@ -1,4 +1,4 @@
-name: Build and deploy Vite site from zip
+name: Build and deploy Next.js site from zip
 
 on:
   push:
@@ -43,15 +43,19 @@ jobs:
 
       - name: Install and build
         working-directory: ${{ env.APP_DIR }}
+        env:
+          # Passes the repo name to your next.config.ts
+          PUBLIC_URL: /${{ github.event.repository.name }}
         run: |
           npm install
-          npm run build -- --base=/${{ github.event.repository.name }}/
+          npm run build
 
       - uses: actions/configure-pages@v5
 
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: ${{ env.APP_DIR }}/dist
+          # Next.js exports to 'out', not 'dist'
+          path: ${{ env.APP_DIR }}/out
 
       - id: deployment
         uses: actions/deploy-pages@v4

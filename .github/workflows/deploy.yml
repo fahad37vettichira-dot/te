@@ -1,0 +1,57 @@
+name: Build and deploy Vite site from zip
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Unzip project
+        run: |
+          echo "Files in repo:"
+          find . -path ./.git -prune -o -type f -print
+          ZIP=$(find . -path ./.git -prune -o -type f -iname "*.zip" -print | head -n 1)
+          if [ -z "$ZIP" ]; then echo "No zip file found in the repo"; exit 1; fi
+          echo "Using zip: $ZIP"
+          mkdir -p project
+          unzip -q "$ZIP" -d project
+          PKG=$(find project -name package.json -not -path "*/node_modules/*" | awk '{print length, $0}' | sort -n | head -n 1 | cut -d' ' -f2-)
+          if [ -z "$PKG" ]; then echo "No package.json found inside the zip"; find project -type f | head -n 100; exit 1; fi
+          echo "Found package.json at $PKG"
+          echo "APP_DIR=$(dirname "$PKG")" >> $GITHUB_ENV
+
+      - name: Install and build
+        working-directory: ${{ env.APP_DIR }}
+        run: |
+          npm install
+          npm run build -- --base=/${{ github.event.repository.name }}/
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: ${{ env.APP_DIR }}/dist
+
+      - id: deployment
+        uses: actions/deploy-pages@v4
